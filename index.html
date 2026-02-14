@@ -4,42 +4,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>بوابة FlowHCM | نظام الإجازات</title>
+    <title>بوابة FlowHCM | نظام الإجازات الذكي</title>
     
     <meta name="theme-color" content="#4f46e5" />
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;900&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap');
       
       :root {
         --app-height: 100vh;
       }
 
       body {
-        font-family: Cairo, sans-serif;
-        background-color: #f8fafc;
+        font-family: 'Cairo', sans-serif;
+        background-color: #f1f5f9;
         margin: 0;
         padding: 0;
         height: var(--app-height);
         overflow: hidden;
+        -webkit-tap-highlight-color: transparent;
       }
 
       #root {
         height: 100%;
         display: flex;
         justify-content: center;
-        background-color: #f1f5f9;
+        background-color: #e2e8f0;
       }
 
+      /* Hide Scrollbars but keep functionality */
       ::-webkit-scrollbar {
-        width: 5px;
-      }
-      ::-webkit-scrollbar-track {
+        width: 0px;
         background: transparent;
       }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 10px;
+
+      /* Animation keyframes */
+      @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+      }
+
+      .float-animation {
+        animation: float 3s ease-in-out infinite;
       }
     </style>
   <script type="importmap">
@@ -52,14 +59,14 @@
     "vite": "https://esm.sh/vite@^7.3.1",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4",
     "path": "https://esm.sh/path@^0.12.7",
-    "url": "https://esm.sh/url@^0.11.4"
+    "url": "https://esm.sh/url@^0.11.4",
+    "firebase/": "https://esm.sh/firebase@^12.9.0/"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
-    <!-- استخدام مسار نسبي مباشر لتجنب البحث عن مجلد src -->
     <script type="module" src="index.tsx"></script>
   </body>
 </html>

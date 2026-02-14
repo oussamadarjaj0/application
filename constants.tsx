@@ -4,88 +4,115 @@ import {
   BarChart3, 
   PlusCircle, 
   Users, 
-  History, 
-  CloudSync,
-  Database
+  History,
+  LayoutDashboard,
+  Bell
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
-  { id: 'dashboard', label: 'الرئيسية', icon: <BarChart3 size={22} /> },
-  { id: 'add_leave', label: 'تسجيل إجازة', icon: <PlusCircle size={22} /> },
+  { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard size={22} /> },
+  { id: 'add_leave', label: 'طلب جديد', icon: <PlusCircle size={22} /> },
   { id: 'employees', label: 'الموظفون', icon: <Users size={22} /> },
-  { id: 'leave_report', label: 'السجلات', icon: <History size={22} /> },
+  { id: 'leave_report', label: 'التقارير', icon: <History size={22} /> },
 ];
 
-const EMP_KEY = 'hcm_employees_v1';
-const LEAVE_KEY = 'hcm_leaves_v1';
-const HOLIDAY_KEY = 'hcm_holidays_v1';
+// Local Storage Helper
+const getStorage = (key: string) => {
+  const data = localStorage.getItem(key);
+  return data ? JSON.parse(data) : null;
+};
+
+const setStorage = (key: string, data: any) => {
+  localStorage.setItem(key, JSON.stringify(data));
+};
+
+// Initial Mock Data - Now Empty as requested
+const INITIAL_EMPLOYEES = [];
+
+// Pending Requests - Now Empty as requested
+export const ALL_PENDING_REQUESTS = [];
 
 export const db = {
-  getEmployees: () => {
-    const data = localStorage.getItem(EMP_KEY);
-    return data ? JSON.parse(data) : [];
+  getEmployees: async () => {
+    let data = getStorage('hcm_employees');
+    if (!data) {
+      setStorage('hcm_employees', INITIAL_EMPLOYEES);
+      data = INITIAL_EMPLOYEES;
+    }
+    return data;
   },
-  saveEmployees: (employees: any[]) => {
-    localStorage.setItem(EMP_KEY, JSON.stringify(employees));
+  saveEmployee: async (employee: any) => {
+    const emps = await db.getEmployees();
+    const index = emps.findIndex((e: any) => String(e.id) === String(employee.id));
+    if (index > -1) {
+      emps[index] = employee;
+    } else {
+      emps.push({ 
+        ...employee, 
+        id: employee.id || Date.now().toString(),
+        annualBalance: employee.annualBalance ?? 30, // Default values for new entries
+        exceptionalBalance: employee.exceptionalBalance ?? 10
+      });
+    }
+    setStorage('hcm_employees', emps);
+  },
+  deleteEmployee: async (id: string) => {
+    const emps = await db.getEmployees();
+    const filtered = emps.filter((e: any) => String(e.id) !== String(id));
+    setStorage('hcm_employees', filtered);
+  },
+  getLeaves: async () => {
+    return getStorage('hcm_leaves') || [];
+  },
+  saveLeave: async (leave: any) => {
+    const leaves = await db.getLeaves();
+    const index = leaves.findIndex((l: any) => String(l.id) === String(leave.id));
+    if (index > -1) {
+      leaves[index] = leave;
+    } else {
+      leaves.push({ ...leave, id: leave.id || Date.now().toString() });
+    }
+    setStorage('hcm_leaves', leaves);
     window.dispatchEvent(new Event('db-update'));
   },
-  getLeaves: () => {
-    const data = localStorage.getItem(LEAVE_KEY);
-    return data ? JSON.parse(data) : [];
-  },
-  saveLeaves: (leaves: any[]) => {
-    localStorage.setItem(LEAVE_KEY, JSON.stringify(leaves));
+  deleteLeave: async (id: string) => {
+    const leaves = await db.getLeaves();
+    const filtered = leaves.filter((l: any) => String(l.id) !== String(id));
+    setStorage('hcm_leaves', filtered);
     window.dispatchEvent(new Event('db-update'));
   },
-  getHolidays: () => {
-    const data = localStorage.getItem(HOLIDAY_KEY);
-    return data ? JSON.parse(data) : [];
+  getHolidays: async () => {
+    // Start with empty list instead of pre-filled holidays
+    return getStorage('hcm_holidays') || [];
   },
-  saveHolidays: (holidays: any[]) => {
-    localStorage.setItem(HOLIDAY_KEY, JSON.stringify(holidays));
-    window.dispatchEvent(new Event('db-update'));
+  saveHoliday: async (holiday: any) => {
+    const hols = await db.getHolidays();
+    const index = hols.findIndex((h: any) => String(h.id) === String(holiday.id));
+    if (index > -1) {
+      hols[index] = holiday;
+    } else {
+      hols.push({ ...holiday, id: holiday.id || Date.now().toString() });
+    }
+    setStorage('hcm_holidays', hols);
   },
-  syncData: async () => {
-    console.log("جارِ المزامنة مع السحابة...");
-    return true;
+  deleteHoliday: async (id: string) => {
+    const hols = await db.getHolidays();
+    const filtered = hols.filter((h: any) => String(h.id) !== String(id));
+    setStorage('hcm_holidays', filtered);
   }
 };
 
-export const getStats = (year?: string) => {
-  const employees = db.getEmployees();
-  const allLeaves = db.getLeaves();
-  const holidays = db.getHolidays();
-  const today = new Date().toISOString().split('T')[0];
-  
-  const leaves = year 
-    ? allLeaves.filter((l: any) => new Date(l.startDate).getFullYear().toString() === year)
-    : allLeaves;
-
-  const activeLeavesToday = allLeaves.filter((l: any) => today >= l.startDate && today <= l.endDate).length;
-
-  return [
-    { id: 'total_emp', label: 'إجمالي الموظفين', value: employees.length, trend: 'قاعدة البيانات', color: 'text-slate-900' },
-    { id: 'on_leave', label: 'في إجازة اليوم', value: activeLeavesToday, trend: 'حسب التاريخ', color: 'text-slate-900' },
-    { id: 'holidays', label: `عطلات عام ${year || ''}`, value: holidays.filter((h: any) => new Date(h.startDate).getFullYear().toString() === year).length, trend: 'المجدولة', color: 'text-slate-900' },
-    { id: 'leave_report', label: `سجلات عام ${year || ''}`, value: leaves.length, trend: 'سجل إداري', color: 'text-slate-900' },
-  ];
-};
-
 export const MOCK_USER = {
-  name: 'مسؤول النظام',
-  employeeId: 'ADMIN-01',
-  role: 'مدير الموارد البشرية',
-  avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=250&h=250&auto=format&fit=crop',
-  email: 'admin@company.com',
-  phone: '+966 50 123 4567',
-  department: 'الموارد البشرية',
+  name: 'مجلس عمالة المضيق الفنيدق',
+  employeeId: 'PREF-2025',
+  role: 'الإدارة المركزية',
+  avatar: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Coat_of_arms_of_Morocco.svg/1200px-Coat_of_arms_of_Morocco.svg.png',
+  email: 'contact@mdi-fni.gov.ma',
+  phone: '+212 539 970 000',
+  department: 'رئاسة المجلس',
   status: 'نشط',
-  station: 'المقر الرئيسي',
-  group: 'الإدارة العليا',
-  reportsTo: 'المدير التنفيذي',
+  station: 'المضيق - المقر الإداري',
+  group: 'قسم الموارد البشرية',
+  reportsTo: 'السيد رئيس المجلس',
   joiningDate: '2020-01-01',
 };
-
-export const MOCK_CURRENT_LEAVES = [];
-export const MOCK_USER_BALANCES = { annual: 22, exceptional: 10 };
-export const ALL_PENDING_REQUESTS = [];

@@ -7,15 +7,19 @@ const CurrentLeaves: React.FC = () => {
   const [activeLeaves, setActiveLeaves] = useState<any[]>([]);
 
   useEffect(() => {
-    const leaves = db.getLeaves();
-    const today = new Date().toISOString().split('T')[0];
-    
-    // فلترة الإجازات النشطة اليوم
-    const current = leaves.filter((l: any) => {
-      return today >= l.startDate && today <= l.endDate;
-    });
-    
-    setActiveLeaves(current);
+    // Fix: db.getLeaves returns a Promise
+    const fetchActiveLeaves = async () => {
+      const leaves = await db.getLeaves();
+      const today = new Date().toISOString().split('T')[0];
+      
+      // فلترة الإجازات النشطة اليوم
+      const current = leaves.filter((l: any) => {
+        return today >= l.startDate && today <= l.endDate;
+      });
+      
+      setActiveLeaves(current);
+    };
+    fetchActiveLeaves();
   }, []);
 
   return (

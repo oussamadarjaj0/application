@@ -25,7 +25,8 @@ const Employees: React.FC<EmployeesProps> = ({ selectedYear }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setStaff(db.getEmployees());
+    // Fix: db.getEmployees returns a Promise
+    db.getEmployees().then(setStaff);
   }, []);
 
   const handleOpenAdd = () => {
@@ -55,43 +56,43 @@ const Employees: React.FC<EmployeesProps> = ({ selectedYear }) => {
     fileInputRef.current?.click();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEmp) return;
 
-    let updated;
     const finalAvatar = editingEmp.avatar || `https://i.pravatar.cc/150?u=${editingEmp.employeeId || Date.now()}`;
     
+    // Fix: Use saveEmployee instead of nonexistent saveEmployees and handle async
+    const empToSave = { ...editingEmp, avatar: finalAvatar };
     if (isAdding) {
-      const newEmp: Employee = {
-        ...editingEmp,
-        id: Date.now(),
-        avatar: finalAvatar,
-      };
-      updated = [...staff, newEmp];
-    } else {
-      updated = staff.map(s => s.id === editingEmp.id ? { ...editingEmp, avatar: finalAvatar } : s);
+      empToSave.id = Date.now();
     }
-
-    setStaff(updated);
-    db.saveEmployees(updated);
+    
+    await db.saveEmployee(empToSave);
+    
+    // Refresh staff list
+    const updatedStaff = await db.getEmployees();
+    setStaff(updatedStaff);
+    
     setIsAdding(false);
     setEditingEmp(null);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 2000);
   };
 
-  const handleDeleteEmployee = (id: number) => {
+  const handleDeleteEmployee = async (id: number) => {
     if (window.confirm('⚠️ هل أنت متأكد من حذف الموظف نهائياً من النظام؟')) {
-      const updated = staff.filter(s => s.id !== id);
-      setStaff(updated);
-      db.saveEmployees(updated);
+      // Fix: Use deleteEmployee and handle async
+      await db.deleteEmployee(String(id));
+      const updatedStaff = await db.getEmployees();
+      setStaff(updatedStaff);
       setEditingEmp(null);
     }
   };
 
-  const exportEmployeeReport = (emp: Employee) => {
-    const allLeaves = db.getLeaves();
+  const exportEmployeeReport = async (emp: Employee) => {
+    // Fix: db.getLeaves returns a Promise
+    const allLeaves = await db.getLeaves();
     const empLeaves = allLeaves.filter((l: any) => String(l.empId) === String(emp.id));
 
     if (empLeaves.length === 0) {
@@ -296,7 +297,7 @@ const Employees: React.FC<EmployeesProps> = ({ selectedYear }) => {
             </div>
             <div className="flex flex-col gap-2 mt-4">
               <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all">
-                {isAdding ? 'حفظ الموظف الجديد' : 'تحديث البيانات'}
+                {isAdding ? 'حفظ الموظف الجديد' : 'تعديل البيانات'}
               </button>
               {!isAdding && editingEmp && (
                 <button 

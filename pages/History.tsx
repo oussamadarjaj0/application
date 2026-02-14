@@ -12,18 +12,22 @@ const History: React.FC<HistoryProps> = ({ selectedYear }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    // جلب الإجازات وفلترتها حسب السنة المختارة
-    const allLeaves = db.getLeaves();
-    const filteredByYear = allLeaves.filter((l: any) => 
-      new Date(l.startDate).getFullYear().toString() === selectedYear
-    );
-    setLeaves(filteredByYear);
+    // Fix: db.getLeaves returns a Promise
+    const fetchLeaves = async () => {
+      const allLeaves = await db.getLeaves();
+      const filteredByYear = allLeaves.filter((l: any) => 
+        new Date(l.startDate).getFullYear().toString() === selectedYear
+      );
+      setLeaves(filteredByYear);
+    };
+    fetchLeaves();
   }, [selectedYear]);
 
+  // Fixed sorting logic to handle string IDs (using Number conversion) for numeric-based IDs like timestamps
   const filteredLeaves = leaves.filter(l => 
     l.empName.toLowerCase().includes(searchTerm.toLowerCase()) || 
     l.type.includes(searchTerm)
-  ).sort((a, b) => b.id - a.id);
+  ).sort((a, b) => Number(b.id) - Number(a.id));
 
   return (
     <div className="space-y-6 pb-28 text-right" dir="rtl">

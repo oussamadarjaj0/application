@@ -26,7 +26,8 @@ import {
 import { db } from '../constants';
 
 interface LeaveRecord {
-  id: number;
+  // Unified ID type to handle both string and number inputs from DB
+  id: string | number;
   empId: string;
   empName: string;
   type: string;
@@ -60,10 +61,16 @@ const LeaveReport: React.FC<LeaveReportProps> = ({ selectedYear }) => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [exportYear, setExportYear] = useState(selectedYear);
 
-  const loadData = () => {
-    setRecords(db.getLeaves());
-    setEmployees(db.getEmployees());
-    setHolidays(db.getHolidays());
+  const loadData = async () => {
+    // Fix: db methods return Promises
+    const [lvs, emps, hols] = await Promise.all([
+      db.getLeaves(),
+      db.getEmployees(),
+      db.getHolidays()
+    ]);
+    setRecords(lvs);
+    setEmployees(emps);
+    setHolidays(hols);
   };
 
   useEffect(() => {
@@ -125,17 +132,19 @@ const LeaveReport: React.FC<LeaveReportProps> = ({ selectedYear }) => {
     return { total: totalDays, deducted: deductedDays };
   };
 
-  const handleSaveBalances = () => {
-    const updatedEmployees = employees.map(emp => {
+  const handleSaveBalances = async () => {
+    // Fix: Use saveEmployee individually in a loop and handle async
+    for (const emp of employees) {
       if (tempBalances[emp.id] !== undefined) {
-        return {
+        const updatedEmp = {
           ...emp,
           [balanceEditorType === 'annual' ? 'annualBalance' : 'exceptionalBalance']: tempBalances[emp.id]
         };
+        await db.saveEmployee(updatedEmp);
       }
-      return emp;
-    });
-    db.saveEmployees(updatedEmployees);
+    }
+    
+    await loadData();
     setBalanceEditorType(null);
     setIsSuccess(true);
     setTimeout(() => setIsSuccess(false), 3000);
@@ -152,21 +161,22 @@ const LeaveReport: React.FC<LeaveReportProps> = ({ selectedYear }) => {
     setBalanceEditorType(type);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: string | number) => {
     if (window.confirm('⚠️ هل أنت متأكد من حذف هذا السجل نهائياً من النظام؟')) {
-      const updated = records.filter(r => String(r.id) !== String(id));
-      setRecords(updated);
-      db.saveLeaves(updated);
+      // Fix: Use deleteLeave and handle async
+      await db.deleteLeave(String(id));
+      await loadData();
       setEditingRecord(null);
       setIsSuccess(true);
       setTimeout(() => setIsSuccess(false), 2000);
     }
   };
 
+  // Fixed sorting logic to handle string IDs by converting them to Number
   const filteredRecords = useMemo(() => {
     return records
       .filter(r => r.empName.toLowerCase().includes(searchTerm.toLowerCase()) || r.type.includes(searchTerm))
-      .sort((a, b) => b.id - a.id);
+      .sort((a, b) => Number(b.id) - Number(a.id));
   }, [records, searchTerm]);
 
   const generateCSV = (data: LeaveRecord[], filename: string) => {
@@ -314,14 +324,12 @@ const LeaveReport: React.FC<LeaveReportProps> = ({ selectedYear }) => {
                       <div className="relative">
                         <img src={record.avatar || 'https://via.placeholder.com/150'} className="w-11 h-11 rounded-2xl object-cover ring-2 ring-slate-50" alt="" />
                         <div className={`absolute -bottom-1 -left-1 w-5 h-5 rounded-lg ${styles.bg} ${styles.text} flex items-center justify-center border-2 border-white`}>
-                          {/* Fixed TypeScript error by casting to React.ReactElement<any> */}
                           {React.cloneElement(styles.icon as React.ReactElement<any>, { size: 12 })}
                         </div>
                       </div>
                       <div>
                         <h4 className="font-black text-slate-800 text-sm leading-none mb-2">{record.empName}</h4>
                         <div className={`inline-flex items-center gap-1.5 text-[9px] font-black px-2.5 py-1 rounded-full ${styles.bg} ${styles.text}`}>
-                          {/* Fixed TypeScript error by casting to React.ReactElement<any> */}
                           {React.cloneElement(styles.icon as React.ReactElement<any>, { size: 10 })}
                           إجازة {record.type}
                         </div>
@@ -455,12 +463,14 @@ const LeaveReport: React.FC<LeaveReportProps> = ({ selectedYear }) => {
               </div>
               <div className="flex flex-col gap-2">
                 <button 
-                  onClick={() => {
+                  onClick={async () => {
                     const { total, deducted } = calculateSmartDeduction(editingRecord.startDate, editingRecord.endDate, editingRecord.type);
                     const updatedRecord = { ...editingRecord, days: total, deductedDays: deducted };
-                    const updatedRecords = records.map(r => String(r.id) === String(editingRecord.id) ? updatedRecord : r);
-                    setRecords(updatedRecords);
-                    db.saveLeaves(updatedRecords);
+                    
+                    // Use saveLeave to persist changes to the mock DB
+                    await db.saveLeave(updatedRecord);
+                    await loadData();
+                    
                     setEditingRecord(null);
                     setIsSuccess(true);
                     setTimeout(() => setIsSuccess(false), 2000);

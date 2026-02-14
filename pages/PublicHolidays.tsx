@@ -34,7 +34,8 @@ const PublicHolidays: React.FC<PublicHolidaysProps> = ({ selectedYear }) => {
   });
 
   useEffect(() => {
-    setHolidays(db.getHolidays());
+    // Fix: db.getHolidays returns a Promise
+    db.getHolidays().then(setHolidays);
   }, []);
 
   const calculateDuration = (start: string, end: string) => {
@@ -62,26 +63,31 @@ const PublicHolidays: React.FC<PublicHolidaysProps> = ({ selectedYear }) => {
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (formData.title && formData.startDate && formData.endDate) {
       const duration = calculateDuration(formData.startDate, formData.endDate);
-      let updated;
-      if (editingId) {
-        updated = holidays.map(h => String(h.id) === String(editingId) ? { ...h, ...formData, duration } : h);
-      } else {
-        updated = [...holidays, { id: Date.now(), ...formData, duration }];
-      }
-      setHolidays(updated);
-      db.saveHolidays(updated);
+      
+      // Fix: Use saveHoliday and handle async
+      const holidayToSave = {
+        id: editingId || Date.now(),
+        ...formData,
+        duration
+      };
+      
+      await db.saveHoliday(holidayToSave);
+      const updatedHolidays = await db.getHolidays();
+      setHolidays(updatedHolidays);
+      
       setShowModal(false);
     }
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('⚠️ هل تريد حذف هذه العطلة من النظام؟')) {
-      const updated = holidays.filter(x => String(x.id) !== String(id));
-      setHolidays(updated);
-      db.saveHolidays(updated);
+      // Fix: Use deleteHoliday and handle async
+      await db.deleteHoliday(String(id));
+      const updatedHolidays = await db.getHolidays();
+      setHolidays(updatedHolidays);
       setShowModal(false);
     }
   };

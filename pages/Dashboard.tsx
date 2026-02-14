@@ -1,17 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-import { getStats, db } from '../constants';
+import { db, MOCK_USER } from '../constants';
 import { 
-  ChevronLeft, 
-  Calendar as CalendarIcon, 
   ShieldCheck, 
-  History, 
-  User, 
-  PieChart,
-  ChevronDown,
-  Palmtree,
-  Sparkles,
-  RefreshCw
+  RefreshCw, 
+  Loader2,
+  Users,
+  CalendarDays,
+  History,
+  TrendingUp,
+  User,
+  ArrowUpRight,
+  Plane
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -20,239 +20,134 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate, selectedYear }) => {
-  const [stats, setStats] = useState(getStats(selectedYear));
   const [employees, setEmployees] = useState<any[]>([]);
-  const [selectedEmpId, setSelectedEmpId] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [empBalance, setEmpBalance] = useState<{
-    annual: { total: number, used: number },
-    exceptional: { total: number, used: number }
-  } | null>(null);
+  const [leaves, setLeaves] = useState<any[]>([]);
+  const [holidays, setHolidays] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeLeavesCount, setActiveLeavesCount] = useState(0);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const [emps, lvs, hols] = await Promise.all([
+      db.getEmployees(),
+      db.getLeaves(),
+      db.getHolidays()
+    ]);
+    setEmployees(emps);
+    setLeaves(lvs);
+    setHolidays(hols);
+
+    const today = new Date().toISOString().split('T')[0];
+    const current = lvs.filter((l: any) => today >= l.startDate && today <= l.endDate);
+    setActiveLeavesCount(current.length);
+
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const handleUpdate = () => {
-      setStats(getStats(selectedYear));
-      setEmployees(db.getEmployees());
-    };
-    handleUpdate();
-    window.addEventListener('db-update', handleUpdate);
-    return () => window.removeEventListener('db-update', handleUpdate);
+    fetchData();
   }, [selectedYear]);
 
-  const handleSync = async () => {
-    setIsSyncing(true);
-    await db.syncData();
-    setTimeout(() => {
-      setIsSyncing(false);
-      setStats(getStats(selectedYear));
-    }, 1500);
-  };
-
-  useEffect(() => {
-    if (selectedEmpId) {
-      const emp = employees.find(e => String(e.id) === selectedEmpId);
-      // فلترة الإجازات للسنة المختارة فقط
-      const leaves = db.getLeaves().filter((l: any) => 
-        String(l.empId) === selectedEmpId && 
-        new Date(l.startDate).getFullYear().toString() === selectedYear
-      );
-      const holidays = db.getHolidays().filter((h: any) => 
-        new Date(h.startDate).getFullYear().toString() === selectedYear
-      );
-      
-      let annualUsed = 0;
-      let exceptionalUsed = 0;
-
-      const holidayDates = holidays.flatMap((h: any) => {
-        const dates = [];
-        let curr = new Date(h.startDate);
-        const stop = new Date(h.endDate);
-        while (curr <= stop) {
-          dates.push(curr.toISOString().split('T')[0]);
-          curr.setDate(curr.getDate() + 1);
-        }
-        return dates;
-      });
-
-      leaves.forEach((l: any) => {
-        const start = new Date(l.startDate);
-        const end = new Date(l.endDate);
-        
-        let current = new Date(start);
-        while (current <= end) {
-          const dateStr = current.toISOString().split('T')[0];
-          const dayOfWeek = current.getDay();
-          const isPublicHoliday = holidayDates.includes(dateStr);
-          
-          if (l.type === 'سنوية') {
-            if (dayOfWeek !== 0 && dayOfWeek !== 6 && !isPublicHoliday) {
-              annualUsed++;
-            }
-          } else if (l.type === 'استثنائية') {
-            if (!isPublicHoliday) {
-              exceptionalUsed++;
-            }
-          }
-          current.setDate(current.getDate() + 1);
-        }
-      });
-
-      setEmpBalance({ 
-        annual: { 
-          total: emp?.annualBalance ?? 30, 
-          used: annualUsed 
-        },
-        exceptional: { 
-          total: emp?.exceptionalBalance ?? 10, 
-          used: exceptionalUsed 
-        }
-      });
-    } else {
-      setEmpBalance(null);
-    }
-  }, [selectedEmpId, employees, selectedYear]);
-
-  const getTargetTab = (id: string) => {
-    switch (id) {
-      case 'total_emp': return 'employees';
-      case 'on_leave': return 'current_leaves';
-      case 'holidays': return 'holidays';
-      case 'leave_report': return 'leave_report';
-      default: return 'dashboard';
-    }
-  };
-
-  return (
-    <div className="space-y-6 text-right" dir="rtl">
-      {/* Welcome Header */}
-      <div className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-7 text-black shadow-sm relative overflow-hidden">
-        <div className="relative z-10 flex flex-col gap-1">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 text-indigo-600">
-               <ShieldCheck size={16} />
-               <span className="text-[10px] font-black uppercase tracking-widest">إحصائيات سنة {selectedYear}</span>
-            </div>
-            <button 
-              onClick={handleSync}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 text-[10px] font-black transition-all ${isSyncing ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'}`}
-            >
-              <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-              {isSyncing ? 'جاري التحديث...' : 'تحديث البيانات'}
-            </button>
-          </div>
-          <h2 className="text-2xl font-black mb-1 text-slate-900">نظرة عامة 📊</h2>
-          <p className="text-slate-500 text-xs font-bold italic">أنت تستعرض بيانات عام {selectedYear}</p>
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-4">
+      <div className="relative">
+        <Loader2 className="animate-spin text-indigo-600" size={48} />
+        <div className="absolute inset-0 flex items-center justify-center">
+           <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
         </div>
       </div>
+      <p className="text-sm font-black text-slate-400">جاري تحميل البيانات الذكية...</p>
+    </div>
+  );
 
-      {/* Balance Checker Tool */}
-      <section className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-5">
-        <div className="flex items-center gap-2 mb-2">
-          <PieChart size={18} className="text-indigo-600" />
-          <h3 className="text-sm font-black text-slate-900">رصيد الموظف لعام {selectedYear}</h3>
+  const stats = [
+    { id: 'total_emp', label: 'الموظفين', value: employees.length, icon: <Users size={20} />, color: 'bg-blue-50 text-blue-600', target: 'employees' },
+    { id: 'active_leaves', label: 'في إجازة الآن', value: activeLeavesCount, icon: <Plane size={20} />, color: 'bg-orange-50 text-orange-600', target: 'current_leaves' },
+    { id: 'holidays', label: 'عطلات رسمية', value: holidays.length, icon: <CalendarDays size={20} />, color: 'bg-purple-50 text-purple-600', target: 'holidays' },
+    { id: 'history', label: 'سجلات الإجازات', value: leaves.length, icon: <History size={20} />, color: 'bg-emerald-50 text-emerald-600', target: 'leave_report' },
+  ];
+
+  return (
+    <div className="space-y-6 text-right animate-in fade-in slide-in-from-bottom-4 duration-700" dir="rtl">
+      {/* Hero Welcome Card */}
+      <div className="bg-gradient-to-br from-indigo-700 to-indigo-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+               <ShieldCheck size={14} className="text-indigo-200" />
+               <span className="text-[10px] font-black uppercase tracking-widest">{MOCK_USER.name}</span>
+            </div>
+            <button onClick={fetchData} className="p-2 hover:bg-white/10 rounded-full transition-all active:rotate-180 duration-500">
+              <RefreshCw size={16} />
+            </button>
+          </div>
+          <h2 className="text-2xl font-black mb-1">مرحباً بك 👋</h2>
+          <p className="text-xs text-indigo-100/70 font-bold">لديك {activeLeavesCount} موظفين خارج المكتب اليوم.</p>
+          
+          <button 
+            onClick={() => onNavigate('add_leave')}
+            className="mt-6 bg-white text-indigo-700 px-6 py-3 rounded-2xl font-black text-xs flex items-center gap-2 shadow-xl shadow-indigo-950/20 active:scale-95 transition-all"
+          >
+            تسجيل إجازة جديدة
+            <ArrowUpRight size={14} />
+          </button>
         </div>
         
-        <div className="relative">
-          <select 
-            value={selectedEmpId}
-            onChange={(e) => setSelectedEmpId(e.target.value)}
-            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-3.5 pr-11 pl-4 text-xs font-black text-slate-900 outline-none focus:border-indigo-500 appearance-none transition-all"
-          >
-            <option value="">اختر موظفاً للمعاينة...</option>
-            {employees.map(emp => (
-              <option key={emp.id} value={emp.id}>{emp.name}</option>
-            ))}
-          </select>
-          <User className="absolute right-4 top-3.5 text-slate-400" size={16} />
-          <ChevronDown className="absolute left-4 top-4 text-slate-400 pointer-events-none" size={14} />
-        </div>
+        {/* Abstract background elements */}
+        <div className="absolute -top-10 -left-10 w-40 h-40 bg-white/5 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
+        <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl"></div>
+      </div>
 
-        {empBalance && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-            <div className="bg-indigo-50/50 p-4 rounded-3xl border border-indigo-100/30">
-              <div className="flex items-center gap-2 mb-3">
-                <Palmtree size={14} className="text-indigo-500" />
-                <span className="text-[10px] font-black text-indigo-700">الرصيد السنوي ({selectedYear})</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-white p-2 rounded-xl text-center shadow-sm">
-                  <p className="text-[7px] font-black text-slate-400 mb-0.5 uppercase">الإجمالي</p>
-                  <p className="text-xs font-black text-indigo-600">{empBalance.annual.total}</p>
-                </div>
-                <div className="bg-white p-2 rounded-xl text-center shadow-sm">
-                  <p className="text-[7px] font-black text-slate-400 mb-0.5 uppercase">المستهلك</p>
-                  <p className="text-xs font-black text-amber-600">{empBalance.annual.used}</p>
-                </div>
-                <div className="bg-indigo-600 p-2 rounded-xl text-center shadow-lg shadow-indigo-100">
-                  <p className="text-[7px] font-black text-indigo-100 mb-0.5 uppercase">المتبقي</p>
-                  <p className="text-xs font-black text-white">{empBalance.annual.total - empBalance.annual.used}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-amber-50/50 p-4 rounded-3xl border border-amber-100/30">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles size={14} className="text-amber-500" />
-                <span className="text-[10px] font-black text-amber-700">الرصيد الاستثنائي ({selectedYear})</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-white p-2 rounded-xl text-center shadow-sm">
-                  <p className="text-[7px] font-black text-slate-400 mb-0.5 uppercase">الإجمالي</p>
-                  <p className="text-xs font-black text-amber-600">{empBalance.exceptional.total}</p>
-                </div>
-                <div className="bg-white p-2 rounded-xl text-center shadow-sm">
-                  <p className="text-[7px] font-black text-slate-400 mb-0.5 uppercase">المستهلك</p>
-                  <p className="text-xs font-black text-rose-600">{empBalance.exceptional.used}</p>
-                </div>
-                <div className="bg-amber-600 p-2 rounded-xl text-center shadow-lg shadow-amber-100">
-                  <p className="text-[7px] font-black text-amber-100 mb-0.5 uppercase">المتبقي</p>
-                  <p className="text-xs font-black text-white">{empBalance.exceptional.total - empBalance.exceptional.used}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Stats Grid */}
-      <section className="grid grid-cols-2 gap-4">
+      {/* Grid Stats */}
+      <div className="grid grid-cols-2 gap-4">
         {stats.map((stat) => (
           <button 
             key={stat.id} 
-            onClick={() => onNavigate(getTargetTab(stat.id))}
-            className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 text-right active:scale-95 transition-all hover:border-indigo-400 group"
+            onClick={() => onNavigate(stat.target)}
+            className="bg-white p-5 rounded-[2.2rem] shadow-sm border border-slate-100 text-right active:scale-95 hover:shadow-md transition-all flex flex-col gap-3 group"
           >
-            <div className="flex justify-between items-start mb-2">
-              <p className="text-[10px] text-slate-500 font-black uppercase">{stat.label}</p>
-              <ChevronLeft size={14} className="text-slate-300 group-hover:text-indigo-600 transition-colors" />
+            <div className={`w-10 h-10 ${stat.color} rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110`}>
+              {stat.icon}
             </div>
-            <p className={`text-3xl font-black text-slate-900`}>{stat.value}</p>
-            <p className="text-[9px] text-indigo-500 mt-2 font-black">{stat.trend}</p>
+            <div>
+              <p className="text-[10px] text-slate-400 font-black mb-0.5 uppercase">{stat.label}</p>
+              <p className="text-2xl font-black text-slate-900">{stat.value}</p>
+            </div>
           </button>
         ))}
-      </section>
-
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-4 pb-4">
-        <button 
-          onClick={() => onNavigate('add_leave')} 
-          className="bg-slate-900 text-white p-6 rounded-[2.2rem] font-black text-xs flex flex-col items-center gap-3 shadow-xl active:scale-95 transition-all"
-        >
-          <div className="bg-white/10 p-3 rounded-2xl">
-            <CalendarIcon size={24} className="text-indigo-400" />
-          </div>
-          إجازة جديدة ({selectedYear})
-        </button>
-        <button 
-          onClick={() => onNavigate('leave_report')} 
-          className="bg-white text-slate-900 border-2 border-slate-100 p-6 rounded-[2.2rem] font-black text-xs flex flex-col items-center gap-3 shadow-sm active:scale-95 transition-all hover:border-indigo-200"
-        >
-          <div className="bg-indigo-50 p-3 rounded-2xl">
-            <History size={24} className="text-indigo-600" />
-          </div>
-          سجلات {selectedYear}
-        </button>
       </div>
+
+      {/* Quick Action / Recent Updates */}
+      <section className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={18} className="text-indigo-600" />
+            <h3 className="text-sm font-black text-slate-900">النشاط الأخير</h3>
+          </div>
+          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">تحديث حي</span>
+        </div>
+        
+        {leaves.length > 0 ? (
+          <div className="space-y-3">
+            {leaves.slice(-2).reverse().map((l: any) => (
+              <div key={l.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100/50">
+                <img src={l.avatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
+                <div className="flex-1">
+                  <p className="text-xs font-black text-slate-800">{l.empName}</p>
+                  <p className="text-[9px] text-slate-400 font-bold">بدأ إجازة {l.type}</p>
+                </div>
+                <div className="text-left">
+                  <span className="text-[9px] font-black text-indigo-600">{l.startDate}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-8 text-center bg-slate-50 rounded-[2rem] border border-dashed border-slate-200">
+            <p className="text-[10px] font-black text-slate-400 italic">لا توجد عمليات مسجلة حالياً</p>
+          </div>
+        )}
+      </section>
     </div>
   );
 };

@@ -27,38 +27,42 @@ const Notifications: React.FC = () => {
   });
 
   useEffect(() => {
-    // توليد تنبيهات ديناميكية بناءً على الإجازات الحقيقية في النظام
-    const leaves = db.getLeaves();
-    const today = new Date();
-    const generated: NotificationItem[] = [];
+    // Fix: Handle asynchronous data fetching for leaves
+    const fetchNotifications = async () => {
+      const leaves = await db.getLeaves();
+      const today = new Date();
+      const generated: NotificationItem[] = [];
 
-    leaves.forEach((l: any) => {
-      const endDate = new Date(l.endDate);
-      const diffTime = endDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      leaves.forEach((l: any) => {
+        const endDate = new Date(l.endDate);
+        const diffTime = endDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      if (diffDays === 0) {
-        generated.push({
-          id: `end-${l.id}`,
-          type: 'urgent',
-          title: 'انتهاء إجازة اليوم',
-          message: `تنتهي إجازة الموظف ${l.empName} اليوم. يجب مباشرة العمل غداً.`,
-          time: 'تحديث تلقائي'
-        });
-      } else if (diffDays > 0 && diffDays <= 2) {
-        generated.push({
-          id: `soon-${l.id}`,
-          type: 'warning',
-          title: 'اقتراب عودة موظف',
-          message: `بقي ${diffDays} يوم على عودة ${l.empName} من إجازته (${l.type}).`,
-          time: 'تحديث تلقائي'
-        });
-      }
-    });
+        if (diffDays === 0) {
+          generated.push({
+            id: `end-${l.id}`,
+            type: 'urgent',
+            title: 'انتهاء إجازة اليوم',
+            message: `تنتهي إجازة الموظف ${l.empName} اليوم. يجب مباشرة العمل غداً.`,
+            time: 'تحديث تلقائي'
+          });
+        } else if (diffDays > 0 && diffDays <= 2) {
+          generated.push({
+            id: `soon-${l.id}`,
+            type: 'warning',
+            title: 'اقتراب عودة موظف',
+            message: `بقي ${diffDays} يوم على عودة ${l.empName} من إجازته (${l.type}).`,
+            time: 'تحديث تلقائي'
+          });
+        }
+      });
 
-    // فلترة التنبيهات التي تم حذفها يدوياً
-    const activeNotifs = generated.filter(n => !dismissedIds.includes(n.id));
-    setNotifs(activeNotifs);
+      // فلترة التنبيهات التي تم حذفها يدوياً
+      const activeNotifs = generated.filter(n => !dismissedIds.includes(n.id));
+      setNotifs(activeNotifs);
+    };
+
+    fetchNotifications();
   }, [dismissedIds]);
 
   const handleDelete = (id: string) => {
